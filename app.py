@@ -13,32 +13,35 @@ os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 def download():
     data = request.json
     url = data["url"]
-    type = data["type"]
-    
+    download_type = data["type"]
+
     ydl_opts = {
         "outtmpl": f"{DOWNLOAD_FOLDER}/%(title)s.%(ext)s",
-        "format": "bestaudio/best" if type == "mp3" else "best",
+        "format": "bestaudio/best" if download_type == "mp3" else "best",
         "noplaylist": True,
     }
 
-    if type == "mp3":
+    if download_type == "mp3":
         ydl_opts["postprocessors"] = [{
             "key": "FFmpegExtractAudio",
             "preferredcodec": "mp3",
             "preferredquality": "192",
         }]
 
-    with YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=True)
-        filename = ydl.prepare_filename(info)
-        if type == "mp3":
-            filename = filename.rsplit(".", 1)[0] + ".mp3"
-        file = os.path.basename(filename)
-        return jsonify({ "download_url": request.url_root + "file/" + file })
+    try:
+        with YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            filename = ydl.prepare_filename(info)
+            if download_type == "mp3":
+                filename = os.path.splitext(filename)[0] + ".mp3"
+            filename_only = os.path.basename(filename)
+            return jsonify({ "download_url": request.url_root + "file/" + filename_only })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/file/<filename>")
 def serve_file(filename):
-    return send_from_directory(DOWNLOAD_FOLDER, filename)
+    return send_from_directory(DOWNLOAD_FOLDER, filename, as_attachment=True)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
